@@ -3,8 +3,17 @@ import sys
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
+def _is_jupyter() -> bool:
+    """Kiểm tra có đang chạy trong Jupyter không."""
+    try:
+        from IPython import get_ipython
+        return get_ipython() is not None
+    except ImportError:
+        return False
+
 # Fix Unicode encoding trên Windows terminal (cp1252 → utf-8)
-if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+# Chỉ thực hiện khi KHÔNG ở trong Jupyter (Jupyter dùng stream ảo)
+if not _is_jupyter() and sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 
@@ -43,10 +52,21 @@ def get_logger(name: str) -> logging.Logger:
 
     # ──────────────────────────────────────────
     # Handler 1: In ra console (stdout)
+    # Jupyter dùng stream ảo → không dùng fileno()
+    # Windows terminal → mở lại với encoding utf-8
     # ──────────────────────────────────────────
-    console_handler = logging.StreamHandler(sys.stdout)
+    if _is_jupyter():
+        # Jupyter: dùng sys.stdout trực tiếp (stream ảo của ipykernel)
+        console_handler = logging.StreamHandler(sys.stdout)
+    else:
+        # Windows terminal: mở lại stdout với encoding utf-8
+        try:
+            utf8_stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1, closefd=False)
+            console_handler = logging.StreamHandler(utf8_stdout)
+        except Exception:
+            console_handler = logging.StreamHandler(sys.stdout)
+
     console_handler.setFormatter(formatter)
-    console_handler.stream = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1, closefd=False)
     logger.addHandler(console_handler)
 
     # ──────────────────────────────────────────
