@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Optional, Dict, Any
+from typing import Optional
 import psycopg2
 
 from config.settings import LOCATIONS
@@ -105,9 +105,9 @@ def check_value_ranges(conn, target_date_id: int) -> bool:
         return False
 
 
-def run_quality_checks(conn, target_date_id: Optional[int] = None) -> bool:
+def run_data_quality_checks(conn, target_date_id: Optional[int] = None) -> bool:
     """
-    Hieu chinh va chay toan bo 4 bai test Post-Load Data Quality Check.
+    Chay toan bo 4 bai test Post-Load Data Quality Check.
 
     Args:
         conn: psycopg2 connection toi Database
@@ -121,10 +121,9 @@ def run_quality_checks(conn, target_date_id: Optional[int] = None) -> bool:
     logger.info("BAT DAU CHAY POST-LOAD DATA QUALITY CHECKS")
 
     if conn is None:
-        logger.error("Quality Check THAT BAI: DB Connection bang None")
+        logger.error("Data Quality Check THAT BAI: DB Connection bang None")
         return False
 
-    # Neu target_date_id bang None, lay date_id moi nhat trong weather_fact
     if target_date_id is None:
         with conn.cursor() as cur:
             cur.execute("SELECT MAX(date_id) FROM weather_fact")
@@ -132,7 +131,7 @@ def run_quality_checks(conn, target_date_id: Optional[int] = None) -> bool:
             target_date_id = row[0] if row else None
 
     if target_date_id is None:
-        logger.error("Quality Check THAT BAI: Khong tim thay date_id nao trong weather_fact")
+        logger.error("Data Quality Check THAT BAI: Khong tim thay date_id nao trong weather_fact")
         return False
 
     logger.info(f"Kiem tra chat luong du lieu cho date_id = {target_date_id}")
@@ -147,9 +146,9 @@ def run_quality_checks(conn, target_date_id: Optional[int] = None) -> bool:
 
     logger.info("==================================================")
     if all_passed:
-        logger.info("POST-LOAD QUALITY CHECKS: PASS 100%")
+        logger.info("POST-LOAD DATA QUALITY CHECKS: PASS 100%")
     else:
-        logger.error("POST-LOAD QUALITY CHECKS: FAIL - Vui long kiem tra lai du lieu!")
+        logger.error("POST-LOAD DATA QUALITY CHECKS: FAIL - Vui long kiem tra lai du lieu!")
     logger.info("==================================================")
 
     return all_passed
@@ -160,7 +159,7 @@ if __name__ == "__main__":
 
     conn = get_connection()
     try:
-        success = run_quality_checks(conn)
+        success = run_data_quality_checks(conn)
         print("Ket qua Data Quality Check:", "PASS" if success else "FAIL")
     finally:
         conn.close()

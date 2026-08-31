@@ -4,7 +4,7 @@ from datetime import datetime
 from src.extract import extract_all_locations
 from src.transform import transform_weather_data
 from src.load import get_connection, seed_dim_location, load_weather_data
-from src.quality_check import run_quality_checks
+from src.data_quality import run_data_quality_checks
 from src.logger import get_logger
 
 logger = get_logger("main")
@@ -18,7 +18,7 @@ def run_pipeline() -> bool:
     3. Transform      : Gan timezone UTC+7, ep kieu, validate, aggregate thanh daily records,
                         map dimension (location_id, date_id, condition_id).
     4. Load           : Seed dim_location va load daily records vao weather_fact.
-    5. Quality Check  : Kiem tra chat luong du lieu trong DB (Completeness, Nulls, Uniqueness, Ranges).
+    5. Data Quality   : Kiem tra chat luong du lieu trong DB (Completeness, Nulls, Uniqueness, Ranges).
 
     Returns:
         True neu pipeline chay thanh cong, False neu co loi.
@@ -82,9 +82,9 @@ def run_pipeline() -> bool:
         # --------------------------------------------------
         # Buoc 4: DATA QUALITY CHECK
         # --------------------------------------------------
-        logger.info("[BUOC 4/4] KIEM TRA CHAT LUONG DU LIEU (QUALITY CHECK)")
+        logger.info("[BUOC 4/4] KIEM TRA CHAT LUONG DU LIEU (DATA QUALITY)")
         target_date_id = int(transformed_df["date_id"].iloc[0])
-        qc_passed = run_quality_checks(conn, target_date_id=target_date_id)
+        qc_passed = run_data_quality_checks(conn, target_date_id=target_date_id)
 
         if not qc_passed:
             logger.error("Pipeline THAT BAI: Data Quality Check khong dat yeu cau!")

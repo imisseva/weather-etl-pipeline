@@ -4,6 +4,7 @@ import pandas as pd
 from src.extract import extract_all_locations
 from src.transform import transform_weather_data
 from src.load import get_connection, seed_dim_location, load_weather_data
+from src.data_quality import run_data_quality_checks
 
 
 class TestPipelineIntegration(unittest.TestCase):
@@ -26,10 +27,11 @@ class TestPipelineIntegration(unittest.TestCase):
     def test_full_etl_pipeline_integration(self):
         """
         Test End-to-End luong ETL thuc te:
-        1. Extract   : Goi API Open-Meteo thuc te.
-        2. Transform : Chuyen 1,512 hourly records -> 63 daily records, map dimension.
-        3. Load      : Seed dim_location va insert vao weather_fact trong Supabase DB.
-        4. Verify    : Query nguoc lai DB xem du lieu da co dung va du chua.
+        1. Extract        : Goi API Open-Meteo thuc te.
+        2. Transform      : Chuyen 1,512 hourly records -> 63 daily records, map dimension.
+        3. Load           : Seed dim_location va insert vao weather_fact trong Supabase DB.
+        4. Data Quality   : Chay 4 bai test Post-Load Data Quality Check khong nem loi.
+        5. Verify         : Query nguoc lai DB xem du lieu da co dung va du chua.
         """
         # --- BƯỚC 1: EXTRACT ---
         raw_df = extract_all_locations()
@@ -63,10 +65,12 @@ class TestPipelineIntegration(unittest.TestCase):
         inserted_count = load_weather_data(self.conn, transformed_df)
         self.assertIsNotNone(inserted_count, "Load weather_fact phai tra ve so luong inserted/skipped")
 
-        # --- BƯỚC 4: VERIFY VIA DATABASE QUERY ---
-        # Lấy date_id vừa load
+        # --- BƯỚC 4: DATA QUALITY CHECK ---
         test_date_id = int(transformed_df["date_id"].iloc[0])
+        qc_passed = run_data_quality_checks(self.conn, target_date_id=test_date_id)
+        self.assertTrue(qc_passed, "Post-Load Data Quality Check phai PASS 100%")
 
+        # --- BƯỚC 5: VERIFY VIA DATABASE QUERY ---
         with self.conn.cursor() as cur:
             # Query dem so luong ban ghi trong weather_fact cho date_id nay
             cur.execute(

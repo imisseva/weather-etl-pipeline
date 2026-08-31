@@ -1,18 +1,18 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from src.quality_check import (
+from src.data_quality import (
     check_completeness,
     check_nulls,
     check_uniqueness,
     check_value_ranges,
-    run_quality_checks,
+    run_data_quality_checks,
 )
 
 
-class TestQualityCheck(unittest.TestCase):
+class TestDataQuality(unittest.TestCase):
     """
-    Unit tests cho module src/quality_check.py
+    Unit tests cho module src/data_quality.py
     Gia lap connection va cursor PostgreSQL de test 4 bai kiem tra chat luong du lieu.
     """
 
@@ -87,39 +87,39 @@ class TestQualityCheck(unittest.TestCase):
 
         self.assertFalse(result)
 
-    @patch("src.quality_check.check_value_ranges")
-    @patch("src.quality_check.check_uniqueness")
-    @patch("src.quality_check.check_nulls")
-    @patch("src.quality_check.check_completeness")
-    def test_run_quality_checks_all_pass(self, mock_c1, mock_c2, mock_c3, mock_c4):
-        """Test hàm run_quality_checks khi ca 4 bai test deu PASS."""
+    @patch("src.data_quality.check_value_ranges")
+    @patch("src.data_quality.check_uniqueness")
+    @patch("src.data_quality.check_nulls")
+    @patch("src.data_quality.check_completeness")
+    def test_run_data_quality_checks_all_pass(self, mock_c1, mock_c2, mock_c3, mock_c4):
+        """Test hàm run_data_quality_checks khi ca 4 bai test deu PASS."""
         mock_c1.return_value = True
         mock_c2.return_value = True
         mock_c3.return_value = True
         mock_c4.return_value = True
 
-        result = run_quality_checks(self.mock_conn, target_date_id=2434)
+        result = run_data_quality_checks(self.mock_conn, target_date_id=2434)
 
         self.assertTrue(result)
 
-    @patch("src.quality_check.check_value_ranges")
-    @patch("src.quality_check.check_uniqueness")
-    @patch("src.quality_check.check_nulls")
-    @patch("src.quality_check.check_completeness")
-    def test_run_quality_checks_one_fail(self, mock_c1, mock_c2, mock_c3, mock_c4):
-        """Test hàm run_quality_checks khi co 1 bai test FAIL."""
+    @patch("src.data_quality.check_value_ranges")
+    @patch("src.data_quality.check_uniqueness")
+    @patch("src.data_quality.check_nulls")
+    @patch("src.data_quality.check_completeness")
+    def test_run_data_quality_checks_one_fail(self, mock_c1, mock_c2, mock_c3, mock_c4):
+        """Test hàm run_data_quality_checks khi co 1 bai test FAIL."""
         mock_c1.return_value = True
         mock_c2.return_value = False  # Test 2 bi Fail
         mock_c3.return_value = True
         mock_c4.return_value = True
 
-        result = run_quality_checks(self.mock_conn, target_date_id=2434)
+        result = run_data_quality_checks(self.mock_conn, target_date_id=2434)
 
         self.assertFalse(result)
 
-    def test_run_quality_checks_none_connection(self):
-        """Test run_quality_checks khi connection bang None -> return False."""
-        result = run_quality_checks(None)
+    def test_run_data_quality_checks_none_connection(self):
+        """Test run_data_quality_checks khi connection bang None -> return False."""
+        result = run_data_quality_checks(None)
         self.assertFalse(result)
 
 
