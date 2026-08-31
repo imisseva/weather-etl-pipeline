@@ -73,13 +73,14 @@ def get_logger(name: str) -> logging.Logger:
     # Handler 2: Ghi vào file, tự rotate mỗi ngày
     # Giữ lại 7 ngày log gần nhất
     # ──────────────────────────────────────────
+    from logging.handlers import RotatingFileHandler
     log_file = Path(LOG_DIR) / "pipeline.log"
-    file_handler = TimedRotatingFileHandler(
+    file_handler = RotatingFileHandler(
         filename=log_file,
-        when="midnight",      # rotate lúc 00:00
-        interval=1,           # mỗi 1 ngày
-        backupCount=7,        # giữ 7 file cũ
+        maxBytes=10 * 1024 * 1024,  # 10 MB per file
+        backupCount=7,              # giữ 7 file cũ
         encoding="utf-8",
+        delay=True,                 # Hoãn mở file cho đến khi có log message (tránh file lock trên Windows)
     )
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
