@@ -21,7 +21,7 @@ def fetch_weather_for_location(location: dict) -> Optional[pd.DataFrame]:
 
     Returns:
         DataFrame gồm: location_name, temperature, humidity,
-        wind_speed, recorded_at. Hoặc None nếu lỗi.
+        wind_speed, weather_code, recorded_at. Hoặc None nếu lỗi.
     """
     name = location["name"]
     logger.info(f"Fetching: {name}")
@@ -85,13 +85,14 @@ def fetch_weather_for_location(location: dict) -> Optional[pd.DataFrame]:
             "temperature":   hourly["temperature_2m"],
             "humidity":      hourly["relative_humidity_2m"],
             "wind_speed":    hourly["wind_speed_10m"],
+            "weather_code":  hourly["weather_code"],     # mã WMO → map sang dim_weather_condition
             "recorded_at":   pd.to_datetime(hourly["time"]),
         })
 
         # Bỏ các hàng thiếu dữ liệu quan trọng
         before = len(df)
         df.dropna(
-            subset=["temperature", "humidity", "wind_speed", "recorded_at"],
+            subset=["temperature", "humidity", "wind_speed", "weather_code", "recorded_at"],
             inplace=True,
         )
         dropped = before - len(df)
@@ -104,7 +105,7 @@ def fetch_weather_for_location(location: dict) -> Optional[pd.DataFrame]:
     except KeyError as e:
         logger.error(f"[{name}] Missing field: {e}")
         logger.error(f"[{name}] API tra ve keys : {list(data.get('hourly', {}).keys())}")
-        logger.error(f"[{name}] Code dang doc   : ['temperature_2m', 'relative_humidity_2m', 'wind_speed_10m', 'time']")
+        logger.error(f"[{name}] Code dang doc   : ['temperature_2m', 'relative_humidity_2m', 'wind_speed_10m', 'weather_code', 'time']")
         logger.error(f"[{name}] → So sanh 2 dong tren de tim field bi doi ten")
         return None
 
