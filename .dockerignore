@@ -1,0 +1,77 @@
+# ============================================================================
+# .dockerignore — Loai tru nhung file khong can vao Docker image
+# ============================================================================
+
+# Git
+.git
+.gitignore
+.gitkeep
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments (dung venv trong container, khong can venv tren host)
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Tests (khong can test ben trong production image)
+tests/
+.pytest_cache/
+.coverage
+.coveragerc
+htmlcov/
+
+# Logs host (se duoc mount vao /app/logs qua volume)
+logs/
+*.log
+
+# Data
+data/
+
+# Notebooks
+notebooks/
+*.ipynb
+.ipynb_checkpoints/
+
+# Documentation
+README.md
+DOCKER_GUIDE.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Docker itself (tranh copy Dockerfile vao image)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Environment backup (chi dung .env, khong copy .env.example)
+.env.example
+.env.local
+.env.*.local
+
+# Database scripts (chi dung khi setup, khong can trong runtime)
+db/

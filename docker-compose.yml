@@ -1,0 +1,80 @@
+version: '3.8'
+
+# ============================================================================
+# Weather ETL Pipeline - Docker Compose
+# ============================================================================
+# Chay mot lan:
+#   docker-compose run --rm weather-etl
+#
+# Chay nen (daemon):
+#   docker-compose up -d
+#
+# Xem log:
+#   docker-compose logs -f weather-etl
+#
+# Kiem tra du lieu nhanh:
+#   docker-compose exec weather-etl python scripts/verify_data.py
+#
+# Kiem tra ket noi DB:
+#   docker-compose exec weather-etl python scripts/test_connection.py
+#
+# Rebuild sau khi sua code:
+#   docker-compose build --no-cache
+#   docker-compose up -d
+#
+# Don dep:
+#   docker-compose down -v
+# ============================================================================
+
+services:
+  weather-etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: weather-etl-pipeline
+    image: weather-etl:latest
+
+    # Doc bien moi truong tu file .env
+    env_file:
+      - .env
+
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+
+    # Mount logs ra host de xem log ben ngoai container
+    volumes:
+      - ./logs:/app/logs
+
+    # Gioi han tai nguyen he thong
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    # Restart khi container crash (khong restart khi dung thu cong)
+    restart: on-failure
+
+    # Cau hinh log Docker Engine
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Health check: kiem tra ket noi DB
+    healthcheck:
+      test: ["CMD", "python", "scripts/test_connection.py"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 10s
+
+networks:
+  default:
+    name: weather-network
+    driver: bridge
