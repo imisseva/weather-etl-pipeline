@@ -1,7 +1,8 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 import pandas as pd
 import psycopg2
+import time
 
 from src.load import (
     get_connection,
@@ -60,6 +61,23 @@ class TestLoad(unittest.TestCase):
         # Phai retry 3 lan
         self.assertEqual(mock_connect.call_count, 3)
 
+    @patch("src.load.time.sleep")
+    @patch("src.load.psycopg2.connect")
+    def test_get_connection_exponential_backoff(self, mock_connect, mock_sleep):
+        """Test retry dung exponential backoff: 1s (2^0), 2s (2^1) truoc lan thu 3."""
+        mock_connect.side_effect = [
+            psycopg2.OperationalError("Fail 1"),
+            psycopg2.OperationalError("Fail 2"),
+            psycopg2.OperationalError("Fail 3"),
+        ]
+
+        with self.assertRaises(psycopg2.OperationalError):
+            get_connection()
+
+        # Phai sleep 1s (2^0) lan 1, 2s (2^1) lan 2, lan 3 khong sleep vi nem loi
+        mock_sleep.assert_has_calls([call(1), call(2)])
+        self.assertEqual(mock_sleep.call_count, 2)
+
     # ──────────────────────────────────────────
     # Test 2: seed_dim_location()
     # ──────────────────────────────────────────
@@ -83,6 +101,35 @@ class TestLoad(unittest.TestCase):
         success = seed_dim_location(self.mock_conn)
 
         self.assertFalse(success)
+        self.mock_conn.rollback.assert_called_once()
+
+    @patch("src.load.time.sleep")
+    @patch("src.load.execute_values")
+    def test_seed_dim_location_operational_error_retry(self, mock_execute_values, mock_sleep):
+        """Test seed_dim_location retry 3 lan khi gap OperationalError, cuoi cung tra ve False."""
+        self.mock_cursor.fetchone.return_value = [63]
+        mock_execute_values.side_effect = psycopg2.OperationalError("DB timeout")
+
+        success = seed_dim_location(self.mock_conn)
+
+        self.assertFalse(success)
+        # execute_values duoc goi 3 lan (MAX_RETRIES = 3)
+        self.assertEqual(mock_execute_values.call_count, 3)
+        # rollback duoc goi sau moi lan loi
+        self.assertEqual(self.mock_conn.rollback.call_count, 3)
+        # sleep 1s va 2s cho 2 lan retry dau
+        mock_sleep.assert_has_calls([call(1), call(2)])
+
+    @patch("src.load.execute_values")
+    def test_seed_dim_location_unexpected_error(self, mock_execute_values):
+        """Test seed_dim_location gap Exception bat ngo - khong retry, tra ve False."""
+        mock_execute_values.side_effect = RuntimeError("Unexpected!")
+
+        success = seed_dim_location(self.mock_conn)
+
+        self.assertFalse(success)
+        # Chi goi 1 lan, khong retry
+        self.assertEqual(mock_execute_values.call_count, 1)
         self.mock_conn.rollback.assert_called_once()
 
     # ──────────────────────────────────────────
@@ -122,6 +169,30 @@ class TestLoad(unittest.TestCase):
         self.assertIsNone(result)
         self.mock_conn.rollback.assert_called_once()
 
+    @patch("src.load.time.sleep")
+    @patch("src.load.execute_values")
+    def test_load_weather_data_operational_error_retry(self, mock_execute_values, mock_sleep):
+        """Test load_weather_data retry 3 lan khi gap OperationalError, tra ve None."""
+        mock_execute_values.side_effect = psycopg2.OperationalError("DB timeout")
+
+        result = load_weather_data(self.mock_conn, self.sample_transformed_df)
+
+        self.assertIsNone(result)
+        self.assertEqual(mock_execute_values.call_count, 3)
+        self.assertEqual(self.mock_conn.rollback.call_count, 3)
+        mock_sleep.assert_has_calls([call(1), call(2)])
+
+    @patch("src.load.execute_values")
+    def test_load_weather_data_unexpected_error(self, mock_execute_values):
+        """Test load_weather_data gap Exception bat ngo - khong retry, tra ve None."""
+        mock_execute_values.side_effect = RuntimeError("Disk full!")
+
+        result = load_weather_data(self.mock_conn, self.sample_transformed_df)
+
+        self.assertIsNone(result)
+        self.assertEqual(mock_execute_values.call_count, 1)
+        self.mock_conn.rollback.assert_called_once()
+
     # ──────────────────────────────────────────
     # Test 4: load_to_database()
     # ──────────────────────────────────────────
@@ -151,6 +222,16 @@ class TestLoad(unittest.TestCase):
 
         self.assertFalse(success)
         self.assertEqual(conn, self.mock_conn)
+
+    @patch("src.load.get_connection")
+    def test_load_to_database_connection_failure(self, mock_get_conn):
+        """Test load_to_database khi get_connection nem loi - tra ve False, conn=None."""
+        mock_get_conn.side_effect = psycopg2.OperationalError("Cannot connect")
+
+        success, conn = load_to_database(self.sample_transformed_df)
+
+        self.assertFalse(success)
+        self.assertIsNone(conn)
 
 
 if __name__ == "__main__":
