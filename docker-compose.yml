@@ -1,80 +1,163 @@
 version: '3.8'
 
 # ============================================================================
-# Weather ETL Pipeline - Docker Compose
+# Weather ETL Pipeline + Apache Airflow
 # ============================================================================
-# Chay mot lan:
-#   docker-compose run --rm weather-etl
 #
-# Chay nen (daemon):
-#   docker-compose up -d
+# KHOI DONG LAN DAU (bat buoc):
+#   docker compose up airflow-init
+#   docker compose up -d
 #
-# Xem log:
-#   docker-compose logs -f weather-etl
+# TRUY CAP AIRFLOW UI:
+#   http://localhost:8080  (admin / admin)
 #
-# Kiem tra du lieu nhanh:
-#   docker-compose exec weather-etl python scripts/verify_data.py
+# CHAY THU PIPELINE KHONG QUA AIRFLOW:
+#   docker compose run --rm weather-etl
 #
-# Kiem tra ket noi DB:
-#   docker-compose exec weather-etl python scripts/test_connection.py
+# KIEM TRA LOG AIRFLOW:
+#   docker compose logs -f airflow-scheduler
+#   docker compose logs -f airflow-webserver
 #
-# Rebuild sau khi sua code:
-#   docker-compose build --no-cache
-#   docker-compose up -d
-#
-# Don dep:
-#   docker-compose down -v
+# DON DEP:
+#   docker compose down -v --remove-orphans
 # ============================================================================
 
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
+  image: weather-etl-airflow:latest
+  env_file:
+    - .env
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+    AIRFLOW__WEBSERVER__SECRET_KEY: 'weather-etl-secret-key-change-in-prod'
+    TZ: Asia/Ho_Chi_Minh
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
+  volumes:
+    # DAG files
+    - ./dags:/opt/airflow/dags
+    # ETL source code (hot-reload khi sua code)
+    - ./src:/opt/airflow/src
+    - ./config:/opt/airflow/config
+    - ./main.py:/opt/airflow/main.py
+    # Log Airflow ra host
+    - ./logs/airflow:/opt/airflow/logs
+  depends_on:
+    airflow-postgres:
+      condition: service_healthy
+  networks:
+    - weather-network
+
 services:
+  # ──────────────────────────────────────────
+  # ETL PIPELINE (chay truc tiep, khong qua Airflow)
+  # ──────────────────────────────────────────
   weather-etl:
     build:
       context: .
       dockerfile: Dockerfile
-
     container_name: weather-etl-pipeline
     image: weather-etl:latest
-
-    # Doc bien moi truong tu file .env
     env_file:
       - .env
-
     environment:
       TZ: Asia/Ho_Chi_Minh
-
-    # Mount logs ra host de xem log ben ngoai container
     volumes:
       - ./logs:/app/logs
-
-    # Gioi han tai nguyen he thong
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
-
-    # Restart khi container crash (khong restart khi dung thu cong)
     restart: on-failure
-
-    # Cau hinh log Docker Engine
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - weather-network
 
-    # Health check: kiem tra ket noi DB
+  # ──────────────────────────────────────────
+  # AIRFLOW METADATA DATABASE
+  # ──────────────────────────────────────────
+  airflow-postgres:
+    image: postgres:15-alpine
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "python", "scripts/test_connection.py"]
-      interval: 60s
-      timeout: 15s
-      retries: 3
-      start_period: 10s
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - weather-network
+
+  # ──────────────────────────────────────────
+  # AIRFLOW INIT (chay 1 lan duy nhat de khoi tao DB + tao user admin)
+  # ──────────────────────────────────────────
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    command: >
+      bash -c "
+        airflow db migrate &&
+        airflow users create
+          --username admin
+          --password admin
+          --firstname Weather
+          --lastname ETL
+          --role Admin
+          --email admin@example.com
+      "
+    restart: "no"
+
+  # ──────────────────────────────────────────
+  # AIRFLOW WEBSERVER (UI tai localhost:8080)
+  # ──────────────────────────────────────────
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────
+  # AIRFLOW SCHEDULER (doc DAG, kich hoat task theo schedule)
+  # ──────────────────────────────────────────
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$${HOSTNAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+# ============================================================================
+# VOLUMES & NETWORKS
+# ============================================================================
+volumes:
+  airflow-postgres-data:
+    driver: local
 
 networks:
-  default:
+  weather-network:
     name: weather-network
     driver: bridge
