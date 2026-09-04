@@ -178,7 +178,7 @@ weather-etl-pipeline/
 
 - Python 3.10+
 - Docker Desktop (running)
-- A PostgreSQL database (e.g. [Supabase](https://supabase.com) free tier)
+- A PostgreSQL database (local or cloud)
 - `.env` file with your database credentials
 
 ### 1. Clone the Repository
@@ -196,12 +196,14 @@ cp .env.example .env
 ```
 
 ```dotenv
-DB_HOST=your-db-host.supabase.com
+DB_HOST=localhost        # or your cloud DB host
 DB_PORT=5432
 DB_USER=your_db_user
 DB_PASSWORD=your_db_password
 DB_NAME=your_db_name
 ```
+
+> **Any PostgreSQL database works** — local Docker, managed cloud (Supabase, Neon, Railway, AWS RDS), or self-hosted.
 
 ### 3. Initialize the Database
 
