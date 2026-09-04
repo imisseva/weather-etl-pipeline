@@ -1,7 +1,7 @@
 version: '3.8'
 
 # ============================================================================
-# Weather ETL Pipeline + Apache Airflow
+# Weather ETL Pipeline — Apache Airflow (LocalExecutor)
 # ============================================================================
 #
 # KHOI DONG LAN DAU (bat buoc):
@@ -11,12 +11,11 @@ version: '3.8'
 # TRUY CAP AIRFLOW UI:
 #   http://localhost:8080  (admin / admin)
 #
-# CHAY THU PIPELINE KHONG QUA AIRFLOW:
-#   docker compose run --rm weather-etl
+# TRIGGER PIPELINE THU CONG (khong can doi schedule):
+#   docker compose exec airflow-scheduler airflow dags trigger weather_etl_pipeline
 #
-# KIEM TRA LOG AIRFLOW:
+# KIEM TRA LOG:
 #   docker compose logs -f airflow-scheduler
-#   docker compose logs -f airflow-webserver
 #
 # DON DEP:
 #   docker compose down -v --remove-orphans
@@ -40,13 +39,10 @@ x-airflow-common: &airflow-common
     TZ: Asia/Ho_Chi_Minh
     AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
   volumes:
-    # DAG files
     - ./dags:/opt/airflow/dags
-    # ETL source code (hot-reload khi sua code)
     - ./src:/opt/airflow/src
     - ./config:/opt/airflow/config
     - ./main.py:/opt/airflow/main.py
-    # Log Airflow ra host
     - ./logs/airflow:/opt/airflow/logs
   depends_on:
     airflow-postgres:
@@ -55,30 +51,6 @@ x-airflow-common: &airflow-common
     - weather-network
 
 services:
-  # ──────────────────────────────────────────
-  # ETL PIPELINE (chay truc tiep, khong qua Airflow)
-  # ──────────────────────────────────────────
-  weather-etl:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: weather-etl-pipeline
-    image: weather-etl:latest
-    env_file:
-      - .env
-    environment:
-      TZ: Asia/Ho_Chi_Minh
-    volumes:
-      - ./logs:/app/logs
-    restart: on-failure
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    networks:
-      - weather-network
-
   # ──────────────────────────────────────────
   # AIRFLOW METADATA DATABASE
   # ──────────────────────────────────────────
@@ -100,7 +72,7 @@ services:
       - weather-network
 
   # ──────────────────────────────────────────
-  # AIRFLOW INIT (chay 1 lan duy nhat de khoi tao DB + tao user admin)
+  # AIRFLOW INIT (chay 1 lan de khoi tao DB + tao user admin)
   # ──────────────────────────────────────────
   airflow-init:
     <<: *airflow-common
