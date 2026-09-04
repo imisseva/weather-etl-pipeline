@@ -178,8 +178,8 @@ weather-etl-pipeline/
 
 - Python 3.10+
 - Docker Desktop (running)
-- Supabase project with Star Schema initialized (see `db/schema.sql`)
-- `.env` file with database credentials
+- A PostgreSQL database (e.g. [Supabase](https://supabase.com) free tier)
+- `.env` file with your database credentials
 
 ### 1. Clone the Repository
 
@@ -191,26 +191,29 @@ cd weather-etl-pipeline
 ### 2. Configure Environment Variables
 
 ```bash
-# Create .env file
-cp .env.example .env  # or create manually
+# Copy the example file and fill in your credentials
+cp .env.example .env
 ```
 
 ```dotenv
-DB_HOST=aws-0-ap-southeast-1.pooler.supabase.com
+DB_HOST=your-db-host.supabase.com
 DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_NAME=postgres
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_NAME=your_db_name
 ```
 
 ### 3. Initialize the Database
 
-Run the Star Schema DDL against your Supabase instance:
+The Star Schema DDL is included in the repo. Run it once against your PostgreSQL database:
 
 ```bash
-# Via Supabase SQL Editor or psql
+# Via psql
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f db/schema.sql
 ```
+
+This creates 4 tables: `dim_location`, `dim_time`, `dim_weather_condition`, `weather_fact`.
+`dim_time` (2020–2030) and `dim_weather_condition` (WMO codes) are pre-seeded automatically.
 
 ### 4. Option A — Run Once (without Airflow)
 
