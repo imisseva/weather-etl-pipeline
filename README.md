@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python&logoColor=white)
 ![Apache Airflow](https://img.shields.io/badge/Apache_Airflow-2.9.3-017CEE?style=flat&logo=apacheairflow&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?style=flat&logo=docker&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-4169E1?style=flat&logo=postgresql&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat&logo=postgresql&logoColor=white)
 ![Pandas](https://img.shields.io/badge/Pandas-2.x-150458?style=flat&logo=pandas&logoColor=white)
 ![Coverage](https://img.shields.io/badge/Test_Coverage-94%25-brightgreen?style=flat)
 
@@ -13,7 +13,55 @@ A production-grade daily weather ETL pipeline that collects hourly data from **6
 
 ## Architecture Diagram
 
-![Architecture Diagram](docs/architecture.png)
+```text
+                 ┌─────────────────────┐
+                 │   Open-Meteo API    │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │       EXTRACT       │
+                 │     Python / API    │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │      TRANSFORM      │
+                 │ pandas / UTC+7      │
+                 │ hourly → daily      │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │    DATA QUALITY     │
+                 │ completeness / null │
+                 │ uniqueness / ranges │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │        LOAD         │
+                 │      psycopg2       │
+                 │    idempotent       │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+              ┌─────────────────────────────┐
+              │   PostgreSQL Data Warehouse │
+              │                             │
+              │       weather_fact          │
+              │       /    |    \           │
+              │ dim_location dim_time       │
+              │       dim_weather_condition │
+              └─────────────────────────────┘
+
+       ┌─────────────────┐       ┌───────────────┐
+       │   Apache Airflow│──────▶│ ETL Pipeline  │
+       │ Daily @ 01:00   │       └───────────────┘
+       └─────────────────┘
+
+                 Docker Container
+```
 
 ### Data Flow
 
@@ -28,29 +76,13 @@ Open-Meteo API
   [2] TRANSFORM    — Timezone (UTC → UTC+7), aggregate hourly → 63 daily records,
         │             map dimension IDs (location_id, date_id, condition_id)
         ▼
-  [3] LOAD         — Seed dim_location, INSERT ON CONFLICT DO NOTHING (idempotent)
+  [3] DATA QUALITY — 4 post-load checks (Completeness, Nulls, Uniqueness, Ranges)
         │
         ▼
-  [4] DATA QUALITY — 4 post-load checks (Completeness, Nulls, Uniqueness, Ranges)
+  [4] LOAD         — Seed dim_location, INSERT ON CONFLICT DO NOTHING (idempotent)
         │
         ▼
-  Supabase PostgreSQL — Star Schema (4 tables)
-```
-
-### Star Schema
-
-```
-         dim_location          dim_weather_condition
-         (63 provinces)        (WMO weather codes)
-              │                        │
-              └────────┐   ┌───────────┘
-                       ▼   ▼
-                   weather_fact
-                   (daily records)
-                       │
-                       ▼
-                   dim_time
-                   (date dimension)
+  PostgreSQL Data Warehouse — Star Schema (4 tables)
 ```
 
 ---
@@ -131,7 +163,7 @@ ON CONFLICT (location_id, date_id) DO NOTHING
 | **Open-Meteo API** | Data source | Free, no API key required, reliable hourly historical data for any coordinate |
 | **pandas** | Transform | Vectorized operations for aggregation; cleaner than raw SQL for multi-step transforms |
 | **psycopg2-binary** | DB driver | Direct PostgreSQL driver; SQLAlchemy adds unnecessary abstraction for simple inserts |
-| **Supabase PostgreSQL** | Storage | Managed PostgreSQL with free tier; no infrastructure to maintain vs. self-hosted |
+| **PostgreSQL** | Storage | Relational database supporting Star Schema DDL, transactions & ACID compliance |
 | **Star Schema** | Data model | Optimized for analytical queries (GROUP BY region, date range filters) vs. flat tables |
 | **Apache Airflow** | Orchestration | Industry-standard scheduler with UI, retry logic, and run history vs. cron (no visibility) |
 | **LocalExecutor** | Airflow executor | Sufficient for a single sequential DAG; CeleryExecutor adds Redis complexity for no gain |
@@ -150,8 +182,6 @@ weather-etl-pipeline/
 │   └── weather_etl_dag.py     # Airflow DAG (daily at 1:00 AM UTC+7)
 ├── db/
 │   └── schema.sql             # Star Schema DDL (4 tables)
-├── docs/
-│   └── architecture.png       # Architecture diagram
 ├── scripts/
 │   ├── test_connection.py     # Quick DB connectivity check
 │   └── verify_data.py         # Post-run data inspection
