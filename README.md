@@ -13,28 +13,54 @@ A production-grade daily weather ETL pipeline that collects hourly data from **6
 
 ## Architecture Diagram
 
-![Architecture Diagram](docs/architecture.png)
+```text
+                 ┌─────────────────────┐
+                 │   Open-Meteo API    │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │       EXTRACT       │
+                 │     Python / API    │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │      TRANSFORM      │
+                 │ pandas / UTC+7      │
+                 │ hourly → daily      │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │    DATA QUALITY     │
+                 │ completeness / null │
+                 │ uniqueness / ranges │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │        LOAD         │
+                 │      psycopg2       │
+                 │    idempotent       │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+              ┌─────────────────────────────┐
+              │   PostgreSQL Data Warehouse │
+              │                             │
+              │       weather_fact          │
+              │       /    |    \           │
+              │ dim_location dim_time       │
+              │       dim_weather_condition │
+              └─────────────────────────────┘
 
-### Data Flow
+       ┌─────────────────┐       ┌───────────────┐
+       │   Apache Airflow│──────▶│ ETL Pipeline  │
+       │ Daily @ 01:00   │       └───────────────┘
+       └─────────────────┘
 
-```
-Open-Meteo API
-  63 provinces × 24 h/day = 1,512 hourly records
-        │
-        ▼
-  [1] EXTRACT      — HTTP requests, sequential fetch, exponential backoff retry
-        │
-        ▼
-  [2] TRANSFORM    — Timezone (UTC → UTC+7), aggregate hourly → 63 daily records,
-        │             map dimension IDs (location_id, date_id, condition_id)
-        ▼
-  [3] DATA QUALITY — 4 post-load checks (Completeness, Nulls, Uniqueness, Ranges)
-        │
-        ▼
-  [4] LOAD         — Seed dim_location, INSERT ON CONFLICT DO NOTHING (idempotent)
-        │
-        ▼
-  PostgreSQL Data Warehouse — Star Schema (4 tables)
+                 Docker Container
 ```
 
 ---
