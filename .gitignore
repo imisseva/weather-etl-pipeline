@@ -38,8 +38,9 @@ wheels/
 # Logs
 logs/
 *.log
+!logs/**/.gitkeep
 
-# Data files (raw, interim data)
+# Data files
 data/raw/
 data/interim/
 
@@ -50,3 +51,11 @@ htmlcov/
 
 # Virtual environments
 .venv
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# Airflow
+logs/airflow/
+!logs/airflow/.gitkeep
