@@ -13,55 +13,7 @@ A production-grade daily weather ETL pipeline that collects hourly data from **6
 
 ## Architecture Diagram
 
-```text
-                 ┌─────────────────────┐
-                 │   Open-Meteo API    │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │       EXTRACT       │
-                 │     Python / API    │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │      TRANSFORM      │
-                 │ pandas / UTC+7      │
-                 │ hourly → daily      │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │    DATA QUALITY     │
-                 │ completeness / null │
-                 │ uniqueness / ranges │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │        LOAD         │
-                 │      psycopg2       │
-                 │    idempotent       │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-              ┌─────────────────────────────┐
-              │   PostgreSQL Data Warehouse │
-              │                             │
-              │       weather_fact          │
-              │       /    |    \           │
-              │ dim_location dim_time       │
-              │       dim_weather_condition │
-              └─────────────────────────────┘
-
-       ┌─────────────────┐       ┌───────────────┐
-       │   Apache Airflow│──────▶│ ETL Pipeline  │
-       │ Daily @ 01:00   │       └───────────────┘
-       └─────────────────┘
-
-                 Docker Container
-```
+![Architecture Diagram](docs/architecture.png)
 
 ### Data Flow
 
@@ -182,6 +134,8 @@ weather-etl-pipeline/
 │   └── weather_etl_dag.py     # Airflow DAG (daily at 1:00 AM UTC+7)
 ├── db/
 │   └── schema.sql             # Star Schema DDL (4 tables)
+├── docs/
+│   └── architecture.png       # Clean technical architecture diagram
 ├── scripts/
 │   ├── test_connection.py     # Quick DB connectivity check
 │   └── verify_data.py         # Post-run data inspection
